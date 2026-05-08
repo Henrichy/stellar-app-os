@@ -15,7 +15,7 @@
 //! The admin can pause/unpause and update the oracle address.
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token, Address, Env, IntoVal,
+    contract, contractimpl, contracttype, symbol_short, token, Address, Env, IntoVal, Symbol,
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -49,10 +49,18 @@ impl TreeToken {
         if env.storage().instance().has(&symbol_short!("ADMIN")) {
             panic!("already initialized");
         }
-        env.storage().instance().set(&symbol_short!("ADMIN"), &admin);
-        env.storage().instance().set(&symbol_short!("TOKEN"), &tree_token);
-        env.storage().instance().set(&symbol_short!("PAUSED"), &false);
-        env.storage().instance().set(&symbol_short!("BURNCOUNT"), &0u64);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("ADMIN"), &admin);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("TOKEN"), &tree_token);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("PAUSED"), &false);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("BURNCOUNT"), &0u64);
     }
 
     /// Burn `amount` TREE tokens from `burner`'s balance to claim a carbon offset.
@@ -61,12 +69,7 @@ impl TreeToken {
     /// The burn is permanent and irreversible.
     ///
     /// `esg_reference` — optional identifier linking this burn to an ESG report.
-    pub fn burn(
-        env: Env,
-        burner: Address,
-        amount: i128,
-        esg_reference: soroban_sdk::String,
-    ) {
+    pub fn burn(env: Env, burner: Address, amount: i128, esg_reference: soroban_sdk::String) {
         Self::assert_not_paused(&env);
         burner.require_auth();
 
@@ -104,10 +107,8 @@ impl TreeToken {
             .set(&symbol_short!("BURNCOUNT"), &(count + 1));
 
         // Emit TokenBurned event — primary ESG audit signal
-        env.events().publish(
-            (symbol_short!("TokenBurned"), burner),
-            amount,
-        );
+        env.events()
+            .publish((Symbol::new(&env, "TokenBurned"), burner), amount);
     }
 
     /// Returns the burn record at sequential index `idx`, or None.
@@ -128,7 +129,9 @@ impl TreeToken {
     /// Pause all state-changing functions. Admin multi-sig only.
     pub fn pause(env: Env) {
         Self::require_admin(&env);
-        env.storage().instance().set(&symbol_short!("PAUSED"), &true);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("PAUSED"), &true);
         env.events()
             .publish((symbol_short!("paused"),), env.ledger().timestamp());
     }
@@ -136,7 +139,9 @@ impl TreeToken {
     /// Unpause the contract. Admin multi-sig only.
     pub fn unpause(env: Env) {
         Self::require_admin(&env);
-        env.storage().instance().set(&symbol_short!("PAUSED"), &false);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("PAUSED"), &false);
         env.events()
             .publish((symbol_short!("unpaused"),), env.ledger().timestamp());
     }

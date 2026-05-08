@@ -204,6 +204,9 @@ impl EscrowMilestone {
             .get(&key)
             .expect("no escrow found for farmer");
 
+        if state.dispute_open {
+            panic!("milestone release blocked: dispute is open");
+        }
         if state.status != EscrowStatus::Funded {
             panic!("milestone already processed or escrow not in funded state");
         }
@@ -466,7 +469,7 @@ mod tests {
 
         client.initialize(&admin);
 
-        (env, admin, funder, farmer, token_id, client)
+        (env, admin, funder, farmer, arbiter, token_id, client)
     }
 
     fn dummy_hash(env: &Env, seed: u8) -> BytesN<32> {
@@ -486,7 +489,7 @@ mod tests {
         assert_eq!(balance(&env, &token, &contract), 0);
         assert_eq!(balance(&env, &token, &farmer), 0);
 
-        client.deposit(&funder, &farmer, &token, &10_000);
+        client.deposit(&funder, &farmer, &token, &10_000, &arbiter);
         assert_eq!(
             client.get_escrow(&farmer).unwrap().status,
             EscrowStatus::Funded
@@ -582,8 +585,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "milestone already processed")]
     fn test_double_verify_milestone_rejected() {
-        let (_env, _admin, funder, farmer, token, client) = setup();
-        client.deposit(&funder, &farmer, &token, &10_000);
+        let (_env, _admin, funder, farmer, arbiter, token, client) = setup();
+        client.deposit(&funder, &farmer, &token, &10_000, &arbiter);
         client.verify_milestone(&farmer, &dummy_hash(&_env, 1));
         client.verify_milestone(&farmer, &dummy_hash(&_env, 1));
     }
@@ -636,9 +639,9 @@ mod tests {
 
     #[test]
     fn test_partial_releases() {
-        let (env, admin, funder, farmer, token, client) = setup();
+        let (env, admin, funder, farmer, arbiter, token, client) = setup();
 
-        client.deposit(&funder, &farmer, &token, &10_000);
+        client.deposit(&funder, &farmer, &token, &10_000, &arbiter);
 
         client.release_partial(&admin, &farmer, &25);
         assert_eq!(balance(&env, &token, &farmer), 2_500);
@@ -656,8 +659,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "total released exceeds milestone amount")]
     fn test_partial_release_over_release_attempt() {
-        let (_env, admin, funder, farmer, token, client) = setup();
-        client.deposit(&funder, &farmer, &token, &10_000);
+        let (_env, admin, funder, farmer, arbiter, token, client) = setup();
+        client.deposit(&funder, &farmer, &token, &10_000, &arbiter);
 
         client.release_partial(&admin, &farmer, &50);
         client.release_partial(&admin, &farmer, &50);

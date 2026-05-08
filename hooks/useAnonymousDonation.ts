@@ -1,6 +1,6 @@
 /**
  * Hook for managing anonymous donations with ZK proofs
- * 
+ *
  * This hook handles the complete flow of privacy-preserving donations:
  * 1. Generate ZK proof in-browser
  * 2. Build anonymous transaction
@@ -13,10 +13,7 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import type { AnonymousDonationProof, ProofGenerationResult } from '@/lib/zk/types';
-import {
-  generateAnonymousDonationProof,
-  verifyAnonymousDonationProof,
-} from '@/lib/zk/prover';
+import { generateAnonymousDonationProof, verifyAnonymousDonationProof } from '@/lib/zk/prover';
 import {
   buildAnonymousDonationTransaction,
   isNullifierUsed,
@@ -43,10 +40,7 @@ interface UseAnonymousDonationReturn {
   proofGenerationTime: number | null;
 
   // Actions
-  generateProof: (
-    walletAddress: string,
-    amount: number
-  ) => Promise<ProofGenerationResult>;
+  generateProof: (walletAddress: string, amount: number) => Promise<ProofGenerationResult>;
   submitAnonymousDonation: (
     amount: number,
     proof: AnonymousDonationProof,
@@ -54,7 +48,7 @@ interface UseAnonymousDonationReturn {
     network: NetworkType
   ) => Promise<{ success: boolean; transactionHash?: string; error?: string }>;
   reset: () => void;
-  
+
   // Utilities
   estimateCost: (amount: number) => ReturnType<typeof estimateAnonymousDonationCost>;
   checkNullifier: (nullifier: string, network: NetworkType) => Promise<boolean>;
@@ -68,9 +62,7 @@ export function useAnonymousDonation(): UseAnonymousDonationReturn {
   const [proofGenerationTime, setProofGenerationTime] = useState<number | null>(null);
 
   const isProcessing =
-    status === 'generating-proof' ||
-    status === 'building-transaction' ||
-    status === 'submitting';
+    status === 'generating-proof' || status === 'building-transaction' || status === 'submitting';
 
   /**
    * Generate ZK proof for anonymous donation
@@ -155,13 +147,12 @@ export function useAnonymousDonation(): UseAnonymousDonationReturn {
         toast.info('Building anonymous transaction...');
 
         // Build anonymous transaction
-        const { transactionXdr, networkPassphrase, nullifier } =
-          await buildAnonymousDonationTransaction(
-            amount,
-            donationProof,
-            relayerPublicKey,
-            network
-          );
+        const { transactionXdr, nullifier } = await buildAnonymousDonationTransaction(
+          amount,
+          donationProof,
+          relayerPublicKey,
+          network
+        );
 
         setStatus('submitting');
         toast.info('Submitting anonymous donation...');
@@ -199,8 +190,7 @@ export function useAnonymousDonation(): UseAnonymousDonationReturn {
           transactionHash: txHash,
         };
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Unknown error during submission';
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error during submission';
         setStatus('error');
         setError(errorMessage);
 
@@ -239,8 +229,8 @@ export function useAnonymousDonation(): UseAnonymousDonationReturn {
    * Check if a nullifier has been used
    */
   const checkNullifier = useCallback(
-    async (nullifier: string, network: NetworkType): Promise<boolean> => {
-      return await isNullifierUsed(nullifier, network);
+    (nullifier: string, network: NetworkType): Promise<boolean> => {
+      return isNullifierUsed(nullifier, network);
     },
     []
   );

@@ -69,7 +69,9 @@ impl AggregateImpactVerifier {
         if env.storage().instance().has(&symbol_short!("ADMIN")) {
             panic!("already initialized");
         }
-        env.storage().instance().set(&symbol_short!("ADMIN"), &admin);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("ADMIN"), &admin);
         // Initialise proof counter
         env.storage().instance().set(&symbol_short!("COUNT"), &0u64);
     }
@@ -85,11 +87,7 @@ impl AggregateImpactVerifier {
     /// - `stats.tree_count == 0` or `stats.farm_count == 0`
     /// - `stats.period_end <= stats.period_start`
     /// - `proof_digest` already registered (replay protection)
-    pub fn submit_aggregate_proof(
-        env: Env,
-        proof_digest: BytesN<32>,
-        stats: AggregateStats,
-    ) {
+    pub fn submit_aggregate_proof(env: Env, proof_digest: BytesN<32>, stats: AggregateStats) {
         Self::require_admin(&env);
 
         if stats.tree_count == 0 {
@@ -176,9 +174,7 @@ impl AggregateImpactVerifier {
 
     /// Returns the proof digest at sequential index `idx` (0-based), or None.
     pub fn get_proof_at(env: Env, idx: u64) -> Option<BytesN<32>> {
-        env.storage()
-            .persistent()
-            .get(&Self::index_key(&env, idx))
+        env.storage().persistent().get(&Self::index_key(&env, idx))
     }
 
     /// Returns the total number of proofs submitted (including revoked).
@@ -193,9 +189,7 @@ impl AggregateImpactVerifier {
     pub fn is_valid_proof(env: Env, proof_digest: BytesN<32>) -> bool {
         env.storage()
             .persistent()
-            .get::<soroban_sdk::Val, AggregateProofRecord>(
-                &Self::digest_key(&env, &proof_digest),
-            )
+            .get::<soroban_sdk::Val, AggregateProofRecord>(&Self::digest_key(&env, &proof_digest))
             .map(|r| !r.revoked)
             .unwrap_or(false)
     }

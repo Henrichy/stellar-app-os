@@ -57,24 +57,26 @@ impl DonationEscrow {
             panic!("already initialized");
         }
 
-        env.storage().instance().set(&symbol_short!("ADMIN"), &admin);
-        env.storage().instance().set(&symbol_short!("TOKENS"), &(xlm_token, usdc_token));
+        env.storage()
+            .instance()
+            .set(&symbol_short!("ADMIN"), &admin);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("TOKENS"), &(xlm_token, usdc_token));
 
         // (current_batch, seq)
-        env.storage().instance().set(&symbol_short!("BATCHSEQ"), &(1u32, 0u64));
+        env.storage()
+            .instance()
+            .set(&symbol_short!("BATCHSEQ"), &(1u32, 0u64));
 
         // recurring donation id counter
-        env.storage().instance().set(&symbol_short!("RECSEQ"), &0u64);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("RECSEQ"), &0u64);
     }
 
     /// Donate funds into escrow
-    pub fn donate(
-        env: Env,
-        donor: Address,
-        token: Address,
-        amount: i128,
-        tree_count: u32,
-    ) -> u64 {
+    pub fn donate(env: Env, donor: Address, token: Address, amount: i128, tree_count: u32) -> u64 {
         donor.require_auth();
 
         if amount <= 0 {
@@ -108,11 +110,7 @@ impl DonationEscrow {
             .set(&symbol_short!("BATCHSEQ"), &(batch_id, next_seq));
 
         // transfer funds
-        token::Client::new(&env, &token).transfer(
-            &donor,
-            &env.current_contract_address(),
-            &amount,
-        );
+        token::Client::new(&env, &token).transfer(&donor, &env.current_contract_address(), &amount);
 
         let rec = DonationRecord {
             donor: donor.clone(),
@@ -152,10 +150,8 @@ impl DonationEscrow {
             .instance()
             .set(&symbol_short!("BATCHSEQ"), &(next_batch, seq));
 
-        env.events().publish(
-            (symbol_short!("batch"), batch_id),
-            (next_batch, true),
-        );
+        env.events()
+            .publish((symbol_short!("batch"), batch_id), (next_batch, true));
 
         next_batch
     }
@@ -169,11 +165,7 @@ impl DonationEscrow {
 
             let key = Self::donation_key(&env, seq);
 
-            let mut rec: DonationRecord = env
-                .storage()
-                .persistent()
-                .get(&key)
-                .expect("not found");
+            let mut rec: DonationRecord = env.storage().persistent().get(&key).expect("not found");
 
             if rec.status != DonationStatus::Pending {
                 panic!("already processed");
@@ -189,7 +181,8 @@ impl DonationEscrow {
 
             env.storage().persistent().set(&key, &rec);
 
-            env.events().publish((symbol_short!("release"), seq), rec.amount);
+            env.events()
+                .publish((symbol_short!("release"), seq), rec.amount);
         }
     }
 
@@ -199,11 +192,7 @@ impl DonationEscrow {
 
         let key = Self::donation_key(&env, seq);
 
-        let mut rec: DonationRecord = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .expect("not found");
+        let mut rec: DonationRecord = env.storage().persistent().get(&key).expect("not found");
 
         if rec.status != DonationStatus::Pending {
             panic!("already processed");
@@ -219,7 +208,8 @@ impl DonationEscrow {
 
         env.storage().persistent().set(&key, &rec);
 
-        env.events().publish((symbol_short!("refund"), seq), rec.amount);
+        env.events()
+            .publish((symbol_short!("refund"), seq), rec.amount);
     }
 
     /// Get donation by seq
@@ -342,7 +332,12 @@ impl DonationEscrow {
 
         env.events().publish(
             (symbol_short!("donation"), symbol_short!("rec_proc")),
-            (donation_id, rec.donor, rec.project_id, rec.amount_per_interval),
+            (
+                donation_id,
+                rec.donor,
+                rec.project_id,
+                rec.amount_per_interval,
+            ),
         );
     }
 
@@ -393,7 +388,9 @@ impl DonationEscrow {
     /// Register a project address (admin only)
     pub fn register_project(env: Env, project_id: u64, project: Address) {
         Self::require_admin(&env);
-        env.storage().instance().set(&Self::project_key(&env, project_id), &project);
+        env.storage()
+            .instance()
+            .set(&Self::project_key(&env, project_id), &project);
     }
 
     // ── internal ──────────────────────────────────────────────────────────────
@@ -426,9 +423,19 @@ impl DonationEscrow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::{Address as _, Ledger as _}, token, Address, Env};
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger as _},
+        token, Address, Env,
+    };
 
-    fn setup() -> (Env, Address, Address, Address, Address, DonationEscrowClient<'static>) {
+    fn setup() -> (
+        Env,
+        Address,
+        Address,
+        Address,
+        Address,
+        DonationEscrowClient<'static>,
+    ) {
         let env = Env::default();
         env.mock_all_auths();
 

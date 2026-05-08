@@ -46,8 +46,9 @@ export async function POST(request: Request) {
     const distance = getDistance(lat, lon, exifLat, exifLon);
     if (distance > MAX_DISTANCE_METERS) {
       return NextResponse.json(
-        { 
-          error: 'Verification failed: Distance between photo GPS and submitted coordinates is too large.',
+        {
+          error:
+            'Verification failed: Distance between photo GPS and submitted coordinates is too large.',
           distanceMeters: Math.round(distance),
         },
         { status: 422 }

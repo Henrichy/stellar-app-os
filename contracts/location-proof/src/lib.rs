@@ -48,7 +48,9 @@ impl LocationProof {
         if env.storage().instance().has(&symbol_short!("ADMIN")) {
             panic!("already initialized");
         }
-        env.storage().instance().set(&symbol_short!("ADMIN"), &admin);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("ADMIN"), &admin);
     }
 
     /// Submit a ZK location proof for a farmer.
@@ -85,10 +87,8 @@ impl LocationProof {
 
         env.storage().persistent().set(&commitment, &entry);
 
-        env.events().publish(
-            (symbol_short!("loc_proof"), farmer_id),
-            commitment,
-        );
+        env.events()
+            .publish((symbol_short!("loc_proof"), farmer_id), commitment);
     }
 
     /// Returns the proof entry for a given commitment, if it exists.
@@ -134,7 +134,7 @@ mod tests {
         // Simulate SHA-256 output with a fixed seed for tests
         let mut preimage = Bytes::new(env);
         preimage.extend_from_array(&[seed; 64]);
-        env.crypto().sha256(&preimage)
+        env.crypto().sha256(&preimage).into()
     }
 
     #[test]

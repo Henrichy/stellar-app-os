@@ -46,11 +46,7 @@ impl NullifierRegistry {
     }
 
     /// Register a tree commitment on-chain with optional expiry.
-    pub fn register(
-        env: Env,
-        input: TreeCommitmentInput,
-        expires_at: Option<u64>,
-    ) -> BytesN<32> {
+    pub fn register(env: Env, input: TreeCommitmentInput, expires_at: Option<u64>) -> BytesN<32> {
         input.farmer_id.require_auth();
 
         let commitment = Self::_compute_commitment(&env, &input);
@@ -143,7 +139,10 @@ impl NullifierRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Address, Env, String};
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger},
+        Address, Env, String,
+    };
 
     fn setup() -> (Env, Address, NullifierRegistryClient<'static>) {
         let env = Env::default();
@@ -453,4 +452,3 @@ mod tests {
         assert!(client.is_registered(&c2));
     }
 }
-

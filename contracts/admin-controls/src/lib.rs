@@ -14,9 +14,7 @@
 //! - `transfer_admin()` supports multi-sig admin rotation with a two-step
 //!   propose → accept pattern to prevent accidental lockout.
 
-use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,9 +27,14 @@ pub enum OptAddress {
 }
 
 impl OptAddress {
-    pub fn is_none(&self) -> bool { matches!(self, OptAddress::None) }
+    pub fn is_none(&self) -> bool {
+        matches!(self, OptAddress::None)
+    }
     pub fn unwrap(self) -> Address {
-        match self { OptAddress::Some(v) => v, OptAddress::None => panic!("unwrap on None") }
+        match self {
+            OptAddress::Some(v) => v,
+            OptAddress::None => panic!("unwrap on None"),
+        }
     }
 }
 
@@ -64,9 +67,15 @@ impl AdminControls {
         if env.storage().instance().has(&symbol_short!("ADMIN")) {
             panic!("already initialized");
         }
-        env.storage().instance().set(&symbol_short!("ADMIN"), &admin);
-        env.storage().instance().set(&symbol_short!("ORACLE"), &oracle);
-        env.storage().instance().set(&symbol_short!("PAUSED"), &false);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("ADMIN"), &admin);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("ORACLE"), &oracle);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("PAUSED"), &false);
     }
 
     // ── Pause controls ────────────────────────────────────────────────────────
@@ -78,7 +87,9 @@ impl AdminControls {
         if Self::_is_paused(&env) {
             panic!("already paused");
         }
-        env.storage().instance().set(&symbol_short!("PAUSED"), &true);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("PAUSED"), &true);
         env.events()
             .publish((symbol_short!("Paused"),), env.ledger().timestamp());
     }
@@ -89,7 +100,9 @@ impl AdminControls {
         if !Self::_is_paused(&env) {
             panic!("not paused");
         }
-        env.storage().instance().set(&symbol_short!("PAUSED"), &false);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("PAUSED"), &false);
         env.events()
             .publish((symbol_short!("Unpaused"),), env.ledger().timestamp());
     }
@@ -125,10 +138,8 @@ impl AdminControls {
             .instance()
             .set(&symbol_short!("ORACLE"), &new_oracle);
 
-        env.events().publish(
-            (symbol_short!("OracleUpd"), old_oracle),
-            new_oracle,
-        );
+        env.events()
+            .publish((symbol_short!("OracleUpd"), old_oracle), new_oracle);
     }
 
     /// Returns the current oracle address.
@@ -145,13 +156,12 @@ impl AdminControls {
     /// The new admin must call `accept_admin()` to complete the transfer.
     pub fn propose_admin(env: Env, new_admin: Address) {
         Self::require_admin(&env);
-        env.storage()
-            .instance()
-            .set(&symbol_short!("PENDADMIN"), &OptAddress::Some(new_admin.clone()));
-        env.events().publish(
-            (symbol_short!("AdminProp"),),
-            new_admin,
+        env.storage().instance().set(
+            &symbol_short!("PENDADMIN"),
+            &OptAddress::Some(new_admin.clone()),
         );
+        env.events()
+            .publish((symbol_short!("AdminProp"),), new_admin);
     }
 
     /// Step 2 — Proposed admin accepts the role.
@@ -182,10 +192,8 @@ impl AdminControls {
             .instance()
             .set(&symbol_short!("PENDADMIN"), &OptAddress::None);
 
-        env.events().publish(
-            (symbol_short!("AdminXfer"), old_admin),
-            pending,
-        );
+        env.events()
+            .publish((symbol_short!("AdminXfer"), old_admin), pending);
     }
 
     /// Returns the current admin configuration snapshot.

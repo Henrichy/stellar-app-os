@@ -125,7 +125,7 @@ function NumberInput({
 }: {
   label: string;
   value: number;
-  onChange: (_val: number) => void; // eslint-disable-line no-unused-vars
+  onChange: (_val: number) => void;
   icon: typeof Plane;
   unit?: string;
   min?: number;
@@ -172,7 +172,7 @@ function TravelStep({
   onChange,
 }: {
   travel: TravelInput;
-  onChange: (_t: TravelInput) => void; // eslint-disable-line no-unused-vars
+  onChange: (_t: TravelInput) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -243,7 +243,7 @@ function EnergyStep({
   onChange,
 }: {
   energy: EnergyInput;
-  onChange: (_e: EnergyInput) => void; // eslint-disable-line no-unused-vars
+  onChange: (_e: EnergyInput) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -308,7 +308,7 @@ function LifestyleStep({
   onChange,
 }: {
   lifestyle: LifestyleInput;
-  onChange: (_l: LifestyleInput) => void; // eslint-disable-line no-unused-vars
+  onChange: (_l: LifestyleInput) => void;
 }) {
   const dietOptions: { value: DietType; label: string; description: string }[] = [
     { value: 'vegan', label: 'Vegan', description: 'Plant-based diet' },
@@ -597,7 +597,7 @@ function ResultsStep({
             Share
           </Button>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             type="button"
@@ -656,31 +656,38 @@ export function ImpactCalculator() {
   // Restore state from URL parameters on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const params = new URLSearchParams(window.location.search);
-    
+
     // Check if we have shared calculator inputs
     const hasSharedInputs = params.has('sf') || params.has('dt');
-    
+
     if (hasSharedInputs) {
       const restoredTravel: TravelInput = {
-        shortFlightsPerYear: parseInt(params.get('sf') || '0', 10) || DEFAULT_TRAVEL.shortFlightsPerYear,
-        longFlightsPerYear: parseInt(params.get('lf') || '0', 10) || DEFAULT_TRAVEL.longFlightsPerYear,
+        shortFlightsPerYear:
+          parseInt(params.get('sf') || '0', 10) || DEFAULT_TRAVEL.shortFlightsPerYear,
+        longFlightsPerYear:
+          parseInt(params.get('lf') || '0', 10) || DEFAULT_TRAVEL.longFlightsPerYear,
         carMilesPerWeek: parseInt(params.get('cm') || '0', 10) || DEFAULT_TRAVEL.carMilesPerWeek,
-        primaryTransport: (params.get('pt') as TravelInput['primaryTransport']) || DEFAULT_TRAVEL.primaryTransport,
+        primaryTransport:
+          (params.get('pt') as TravelInput['primaryTransport']) || DEFAULT_TRAVEL.primaryTransport,
       };
-      
+
       const restoredEnergy: EnergyInput = {
-        electricityKwhPerMonth: parseInt(params.get('el') || '0', 10) || DEFAULT_ENERGY.electricityKwhPerMonth,
+        electricityKwhPerMonth:
+          parseInt(params.get('el') || '0', 10) || DEFAULT_ENERGY.electricityKwhPerMonth,
         gasThermPerMonth: parseInt(params.get('ga') || '0', 10) || DEFAULT_ENERGY.gasThermPerMonth,
-        renewablePercentage: parseInt(params.get('re') || '0', 10) || DEFAULT_ENERGY.renewablePercentage,
+        renewablePercentage:
+          parseInt(params.get('re') || '0', 10) || DEFAULT_ENERGY.renewablePercentage,
       };
-      
+
       const restoredLifestyle: LifestyleInput = {
         dietType: (params.get('dt') as LifestyleInput['dietType']) || DEFAULT_LIFESTYLE.dietType,
-        shoppingHabits: (params.get('sh') as LifestyleInput['shoppingHabits']) || DEFAULT_LIFESTYLE.shoppingHabits,
+        shoppingHabits:
+          (params.get('sh') as LifestyleInput['shoppingHabits']) ||
+          DEFAULT_LIFESTYLE.shoppingHabits,
       };
-      
+
       setTravel(restoredTravel);
       setEnergy(restoredEnergy);
       setLifestyle(restoredLifestyle);

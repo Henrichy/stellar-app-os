@@ -1,6 +1,6 @@
 /**
  * API Route: Submit Anonymous Donation
- * 
+ *
  * Handles submission of privacy-preserving donations with ZK proofs.
  * Verifies the proof and submits the transaction to the Stellar network.
  */
@@ -26,27 +26,21 @@ export async function POST(request: Request) {
 
     // Validate required parameters
     if (!transactionXdr || !network || !proof || !nullifier) {
-      return NextResponse.json(
-        { error: 'Missing required parameters' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
     // Step 1: Verify the ZK proof
     console.log('Verifying zero-knowledge proof...');
     const isProofValid = await verifyAnonymousDonationProof(proof);
-    
+
     if (!isProofValid) {
-      return NextResponse.json(
-        { error: 'Invalid zero-knowledge proof' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid zero-knowledge proof' }, { status: 400 });
     }
 
     // Step 2: Check if nullifier has been used (prevent double-donations)
     console.log('Checking nullifier...');
     const nullifierExists = await isNullifierUsed(nullifier, network);
-    
+
     if (nullifierExists) {
       return NextResponse.json(
         { error: 'Nullifier already used - this donation has already been submitted' },
@@ -56,10 +50,7 @@ export async function POST(request: Request) {
 
     // Step 3: Verify proof matches the provided nullifier
     if (proof.nullifier !== nullifier) {
-      return NextResponse.json(
-        { error: 'Proof nullifier mismatch' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Proof nullifier mismatch' }, { status: 400 });
     }
 
     // Step 4: Submit the transaction to Stellar network
@@ -85,15 +76,11 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Error submitting anonymous donation:', error);
-    
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : 'Failed to submit anonymous donation';
-    
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to submit anonymous donation';
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -122,10 +109,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error('Error checking nullifier:', error);
-    
-    return NextResponse.json(
-      { error: 'Failed to check nullifier' },
-      { status: 500 }
-    );
+
+    return NextResponse.json({ error: 'Failed to check nullifier' }, { status: 500 });
   }
 }

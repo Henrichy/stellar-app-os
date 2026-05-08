@@ -6,9 +6,7 @@
 //! a farmer's KYC status. History is append-only; the latest status is
 //! queryable publicly.
 
-use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, IntoVal, Vec,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, IntoVal, Vec};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,7 +52,9 @@ impl KycAttestation {
         if env.storage().instance().has(&symbol_short!("ADMIN")) {
             panic!("already initialized");
         }
-        env.storage().instance().set(&symbol_short!("ADMIN"), &admin);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("ADMIN"), &admin);
     }
 
     /// Register a verifier. Only callable by admin.

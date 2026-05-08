@@ -17,13 +17,13 @@ export interface WalletConnection {
 
 export interface WalletContextValue {
   wallet: WalletConnection | null;
-  // eslint-disable-next-line no-unused-vars
+
   connect: (type: WalletType, network?: NetworkType) => Promise<void>;
   disconnect: () => void;
-  // eslint-disable-next-line no-unused-vars
+
   switchNetwork: (network: NetworkType) => Promise<void>;
   refreshBalance: () => Promise<void>;
-  // eslint-disable-next-line no-unused-vars
+
   signTransaction: (transactionXdr: string, networkPassphrase: string) => Promise<string>;
   isLoading: boolean;
   error: string | null;
@@ -31,7 +31,6 @@ export interface WalletContextValue {
 }
 
 export interface WalletConnectionProps {
-  // eslint-disable-next-line no-unused-vars
   onConnectionChange?: (connection: WalletConnection | null) => void;
   title?: string;
   description?: string;

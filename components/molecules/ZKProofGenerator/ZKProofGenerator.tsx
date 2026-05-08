@@ -1,6 +1,6 @@
 /**
  * ZK Proof Generator Component
- * 
+ *
  * Displays the proof generation process with progress indicators
  * and technical details for transparency.
  */
@@ -53,15 +53,15 @@ export function ZKProofGenerator({
   const hasError = status === 'error' && error;
 
   return (
-    <div className={`rounded-xl border border-purple-200 bg-purple-50 dark:bg-purple-950/20 dark:border-purple-800 p-6 space-y-4 ${className}`}>
+    <div
+      className={`rounded-xl border border-purple-200 bg-purple-50 dark:bg-purple-950/20 dark:border-purple-800 p-6 space-y-4 ${className}`}
+    >
       {/* Header */}
       <div className="flex items-center gap-3">
         {isGenerating && (
           <Loader2 className="w-6 h-6 text-purple-500 animate-spin" aria-hidden="true" />
         )}
-        {isGenerated && (
-          <CheckCircle2 className="w-6 h-6 text-green-500" aria-hidden="true" />
-        )}
+        {isGenerated && <CheckCircle2 className="w-6 h-6 text-green-500" aria-hidden="true" />}
         {hasError && <AlertCircle className="w-6 h-6 text-red-500" aria-hidden="true" />}
 
         <div>

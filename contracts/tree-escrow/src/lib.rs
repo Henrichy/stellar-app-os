@@ -13,7 +13,7 @@
 //!                              ↘ Disputed (survival rate < 70%, 25% held)
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, IntoVal,
+    contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, IntoVal, Vec,
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -41,9 +41,14 @@ pub enum OptProof {
 }
 
 impl OptProof {
-    pub fn is_some(&self) -> bool { matches!(self, OptProof::Some(_)) }
+    pub fn is_some(&self) -> bool {
+        matches!(self, OptProof::Some(_))
+    }
     pub fn unwrap(self) -> BytesN<32> {
-        match self { OptProof::Some(v) => v, OptProof::None => panic!("unwrap on None") }
+        match self {
+            OptProof::Some(v) => v,
+            OptProof::None => panic!("unwrap on None"),
+        }
     }
 }
 
@@ -56,9 +61,14 @@ pub enum OptU64 {
 }
 
 impl OptU64 {
-    pub fn is_some(&self) -> bool { matches!(self, OptU64::Some(_)) }
+    pub fn is_some(&self) -> bool {
+        matches!(self, OptU64::Some(_))
+    }
     pub fn unwrap(self) -> u64 {
-        match self { OptU64::Some(v) => v, OptU64::None => panic!("unwrap on None") }
+        match self {
+            OptU64::Some(v) => v,
+            OptU64::None => panic!("unwrap on None"),
+        }
     }
 }
 
@@ -112,7 +122,7 @@ impl TreeEscrow {
     ///
     /// The escrow contract must be the TREE token admin so it can mint rewards
     /// when planting verification is confirmed.
-    /// 
+    ///
     /// OPTIMIZED: Cache tree token decimals to avoid repeated calculations
     pub fn initialize(env: Env, admin: Address, tree_token: Address) {
         if env.storage().instance().has(&symbol_short!("ADMIN")) {
@@ -123,14 +133,15 @@ impl TreeEscrow {
         {
             panic!("contract must be tree token admin");
         }
-        
+
         // OPTIMIZATION: Cache tree token decimals to avoid repeated calculations
         let tree_decimals = token::Client::new(&env, &tree_token).decimals();
-        
+
         // OPTIMIZATION: Store admin and tree token as tuple (reduces reads from 2 to 1)
-        env.storage()
-            .instance()
-            .set(&symbol_short!("ADMINTREE"), &(admin, tree_token, tree_decimals));
+        env.storage().instance().set(
+            &symbol_short!("ADMINTREE"),
+            &(admin, tree_token, tree_decimals),
+        );
     }
 
     /// Donor deposits `amount` of `token` into escrow for `farmer`.
@@ -196,12 +207,7 @@ impl TreeEscrow {
     ///   - All slots must use the same token.
     ///   - No farmer in the batch may already have an active escrow.
     ///   - Batch size is capped at MAX_BATCH_SIZE (50) to stay within ledger limits.
-    pub fn batch_deposit(
-        env: Env,
-        donor: Address,
-        token: Address,
-        slots: Vec<BatchSlot>,
-    ) {
+    pub fn batch_deposit(env: Env, donor: Address, token: Address, slots: Vec<BatchSlot>) {
         donor.require_auth();
 
         let n = slots.len();
@@ -227,25 +233,33 @@ impl TreeEscrow {
         }
 
         // Single token transfer for the entire batch — gas-efficient
-        token::Client::new(&env, &token)
-            .transfer(&donor, &env.current_contract_address(), &total);
+        token::Client::new(&env, &token).transfer(&donor, &env.current_contract_address(), &total);
 
         // Write one escrow record per slot
         for i in 0..n {
             let slot = slots.get(i).unwrap();
             let key = Self::record_key(&env, &slot.farmer);
-            env.storage().persistent().set(&key, &EscrowRecord {
-                donor:          donor.clone(),
-                farmer:         slot.farmer.clone(),
-                token:          token.clone(),
-                total_amount:   slot.amount,
-                released:       0,
-                status:         EscrowStatus::Funded,
-                planted_at:     None,
-                planting_proof: None,
-                survival_proof: None,
-            });
-            env.events().publish((symbol_short!("deposit"), slot.farmer), slot.amount);
+            let empty_hash = BytesN::from_array(&env, &[0; 32]);
+            env.storage().persistent().set(
+                &key,
+                &EscrowRecord {
+                    donor: donor.clone(),
+                    farmer: slot.farmer.clone(),
+                    token: token.clone(),
+                    total_amount: slot.amount,
+                    tree_count: 1,
+                    verified_tree_count: 0,
+                    tree_tokens_minted: 0,
+                    released: 0,
+                    status: EscrowStatus::Funded,
+                    planted_at: None,
+                    planting_proof: empty_hash.clone(),
+                    survival_proof: empty_hash,
+                    survival_rate_percent: 0,
+                },
+            );
+            env.events()
+                .publish((symbol_short!("deposit"), slot.farmer), slot.amount);
         }
 
         env.events().publish((symbol_short!("batch"), donor), total);
@@ -254,7 +268,7 @@ impl TreeEscrow {
     /// Verifier calls this after GPS + photo proof of planting is validated.
     /// Releases 75% of escrowed funds instantly to the farmer.
     /// Mints one TREE token to the donor for each verified tree.
-    /// 
+    ///
     /// OPTIMIZED: Reduced storage operations from 4 to 2 (1 read + 1 write)
     pub fn verify_planting(
         env: Env,
@@ -268,7 +282,7 @@ impl TreeEscrow {
             .instance()
             .get(&symbol_short!("ADMINTREE"))
             .expect("contract not initialized");
-        
+
         admin.require_auth();
 
         let key = Self::record_key(&env, &farmer);
@@ -289,7 +303,7 @@ impl TreeEscrow {
         }
 
         let tranche1 = (rec.total_amount * TRANCHE_1_BPS) / BPS_DENOM;
-        
+
         // OPTIMIZATION: Use cached decimals instead of calling token_unit() (saves computation)
         let tree_token_unit = Self::compute_token_unit(tree_decimals);
         let tree_tokens = verified_tree_count
@@ -327,7 +341,7 @@ impl TreeEscrow {
     /// - survival_rate <  70% → status → Disputed, Tranche 2 held
     ///
     /// Enforces that at least 6 months have elapsed since planting verification.
-    /// 
+    ///
     /// OPTIMIZED: Reduced storage operations
     pub fn verify_survival(
         env: Env,
@@ -341,10 +355,10 @@ impl TreeEscrow {
             .instance()
             .get(&symbol_short!("ADMINTREE"))
             .expect("contract not initialized");
-        
+
         admin.require_auth();
 
-        if survival_rate > 100 {
+        if survival_rate_percent > 100 {
             panic!("survival_rate must be between 0 and 100");
         }
 
@@ -371,7 +385,9 @@ impl TreeEscrow {
         }
 
         let tranche2 = rec.total_amount - rec.released;
-        if tranche2 <= 0 { panic!("nothing left to release"); }
+        if tranche2 <= 0 {
+            panic!("nothing left to release");
+        }
 
         token::Client::new(&env, &rec.token).transfer(
             &env.current_contract_address(),
@@ -397,7 +413,7 @@ impl TreeEscrow {
             .instance()
             .get(&symbol_short!("ADMINTREE"))
             .expect("contract not initialized");
-        
+
         admin.require_auth();
 
         let key = Self::record_key(&env, &farmer);
@@ -555,7 +571,7 @@ mod tests {
         // Verify planting → 75% released
         client.verify_planting(&farmer, &proof(&env, 1), &42);
         let rec = client.get_record(&farmer).unwrap();
-        assert_eq!(rec.status,   EscrowStatus::Planted);
+        assert_eq!(rec.status, EscrowStatus::Planted);
         assert_eq!(rec.released, 7_500);
         assert_eq!(rec.status, EscrowStatus::Planted);
         assert_eq!(rec.tree_count, 42);
@@ -574,7 +590,7 @@ mod tests {
         // Verify survival → remaining 25% released
         client.verify_survival(&farmer, &proof(&env, 2), &70);
         let rec = client.get_record(&farmer).unwrap();
-        assert_eq!(rec.status,   EscrowStatus::Completed);
+        assert_eq!(rec.status, EscrowStatus::Completed);
         assert_eq!(rec.released, 10_000);
         assert_eq!(rec.status, EscrowStatus::Completed);
         assert_eq!(rec.survival_rate_percent, 70);

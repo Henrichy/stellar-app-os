@@ -197,11 +197,15 @@ export const ImpactReportPDF: React.FC<ImpactReportPDFProps> = ({
         <View style={styles.grid}>
           <View style={[styles.gridItem, styles.recommendationBox]}>
             <Text style={styles.recommendationTitle}>Trees Needed</Text>
-            <Text style={styles.recommendationValue}>{results.treesEquivalent.toLocaleString()}</Text>
+            <Text style={styles.recommendationValue}>
+              {results.treesEquivalent.toLocaleString()}
+            </Text>
             <Text style={styles.recommendationLabel}>to absorb annual emissions</Text>
           </View>
           <View style={[styles.gridItem, styles.recommendationBox]}>
-            <Text style={[styles.recommendationTitle, { color: '#0066CC' }]}>Credits to Offset</Text>
+            <Text style={[styles.recommendationTitle, { color: '#0066CC' }]}>
+              Credits to Offset
+            </Text>
             <Text style={[styles.recommendationValue, { color: '#0066CC' }]}>
               {results.recommendedCredits}
             </Text>
@@ -213,8 +217,10 @@ export const ImpactReportPDF: React.FC<ImpactReportPDFProps> = ({
       {/* Input Details */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Your Inputs</Text>
-        
-        <Text style={{ fontSize: 12, fontWeight: 'bold', marginTop: 10, marginBottom: 5 }}>Travel</Text>
+
+        <Text style={{ fontSize: 12, fontWeight: 'bold', marginTop: 10, marginBottom: 5 }}>
+          Travel
+        </Text>
         <View style={styles.row}>
           <Text style={styles.label}>Short flights per year</Text>
           <Text style={styles.value}>{travel.shortFlightsPerYear}</Text>
@@ -232,7 +238,9 @@ export const ImpactReportPDF: React.FC<ImpactReportPDFProps> = ({
           <Text style={styles.value}>{travel.primaryTransport}</Text>
         </View>
 
-        <Text style={{ fontSize: 12, fontWeight: 'bold', marginTop: 15, marginBottom: 5 }}>Energy</Text>
+        <Text style={{ fontSize: 12, fontWeight: 'bold', marginTop: 15, marginBottom: 5 }}>
+          Energy
+        </Text>
         <View style={styles.row}>
           <Text style={styles.label}>Electricity (kWh/month)</Text>
           <Text style={styles.value}>{energy.electricityKwhPerMonth}</Text>
@@ -246,7 +254,9 @@ export const ImpactReportPDF: React.FC<ImpactReportPDFProps> = ({
           <Text style={styles.value}>{energy.renewablePercentage}%</Text>
         </View>
 
-        <Text style={{ fontSize: 12, fontWeight: 'bold', marginTop: 15, marginBottom: 5 }}>Lifestyle</Text>
+        <Text style={{ fontSize: 12, fontWeight: 'bold', marginTop: 15, marginBottom: 5 }}>
+          Lifestyle
+        </Text>
         <View style={styles.row}>
           <Text style={styles.label}>Diet type</Text>
           <Text style={styles.value}>{lifestyle.dietType}</Text>

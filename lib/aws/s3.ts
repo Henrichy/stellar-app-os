@@ -9,7 +9,11 @@ const s3Client = new S3Client({
   },
 });
 
-export async function uploadImageToS3(farmerId: string, imageBuffer: Buffer, mimeType: string): Promise<string> {
+export async function uploadImageToS3(
+  farmerId: string,
+  imageBuffer: Buffer,
+  mimeType: string
+): Promise<string> {
   const bucket = process.env.AWS_S3_BUCKET;
   if (!bucket) {
     throw new Error('AWS_S3_BUCKET is not set');
@@ -30,7 +34,7 @@ export async function uploadImageToS3(farmerId: string, imageBuffer: Buffer, mim
   return key;
 }
 
-export async function getSignedPrivateUrl(key: string, expiresIn = 3600): Promise<string> {
+export function getSignedPrivateUrl(key: string, expiresIn = 3600): Promise<string> {
   const bucket = process.env.AWS_S3_BUCKET;
   if (!bucket) {
     throw new Error('AWS_S3_BUCKET is not set');
@@ -41,5 +45,5 @@ export async function getSignedPrivateUrl(key: string, expiresIn = 3600): Promis
     Key: key,
   });
 
-  return await getSignedUrl(s3Client, command, { expiresIn });
+  return getSignedUrl(s3Client, command, { expiresIn });
 }

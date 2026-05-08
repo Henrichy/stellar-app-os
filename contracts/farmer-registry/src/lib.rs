@@ -42,7 +42,9 @@ impl FarmerRegistry {
         if env.storage().instance().has(&symbol_short!("ADMIN")) {
             panic!("already initialized");
         }
-        env.storage().instance().set(&symbol_short!("ADMIN"), &admin);
+        env.storage()
+            .instance()
+            .set(&symbol_short!("ADMIN"), &admin);
     }
 
     /// Register a farmer
@@ -118,11 +120,7 @@ impl FarmerRegistry {
 
         // Increment version counter
         let version_key = Self::version_counter_key(&env, &wallet_address);
-        let old_version: u32 = env
-            .storage()
-            .persistent()
-            .get(&version_key)
-            .unwrap_or(0u32);
+        let old_version: u32 = env.storage().persistent().get(&version_key).unwrap_or(0u32);
         let new_version = old_version + 1;
         env.storage().persistent().set(&version_key, &new_version);
 
@@ -168,10 +166,7 @@ impl FarmerRegistry {
     /// Returns the current version counter for a farmer.
     pub fn get_version(env: Env, wallet_address: Address) -> u32 {
         let version_key = Self::version_counter_key(&env, &wallet_address);
-        env.storage()
-            .persistent()
-            .get(&version_key)
-            .unwrap_or(0u32)
+        env.storage().persistent().get(&version_key).unwrap_or(0u32)
     }
 
     /// Get farmer profile
@@ -245,11 +240,8 @@ mod tests {
         let (env, _, client) = setup();
         let farmer = Address::generate(&env);
 
-        let profile = client.register_farmer(
-            &farmer,
-            &land_hash(&env, 1),
-            &String::from_str(&env, "s1"),
-        );
+        let profile =
+            client.register_farmer(&farmer, &land_hash(&env, 1), &String::from_str(&env, "s1"));
 
         assert_eq!(profile.wallet_address, farmer);
         assert!(client.is_registered(&farmer));
@@ -338,11 +330,17 @@ mod tests {
         let (env, _, client) = setup();
         let stranger = Address::generate(&env);
 
-        client.update_profile(&stranger, &land_hash(&env, 1), &String::from_str(&env, "s1"));
+        client.update_profile(
+            &stranger,
+            &land_hash(&env, 1),
+            &String::from_str(&env, "s1"),
+        );
     }
 
     #[test]
-    #[should_panic(expected = "region is not within the approved Northern Nigeria geohash boundary")]
+    #[should_panic(
+        expected = "region is not within the approved Northern Nigeria geohash boundary"
+    )]
     fn test_update_profile_invalid_region_rejected() {
         let (env, _, client) = setup();
         let farmer = Address::generate(&env);
@@ -365,7 +363,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "region is not within the approved Northern Nigeria geohash boundary")]
+    #[should_panic(
+        expected = "region is not within the approved Northern Nigeria geohash boundary"
+    )]
     fn test_invalid_region_rejected() {
         let (env, _, client) = setup();
         let farmer = Address::generate(&env);
