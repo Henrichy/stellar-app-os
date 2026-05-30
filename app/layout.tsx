@@ -1,17 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import { Header } from '@/components/organisms/Header/Header';
 import { Footer } from '@/components/organisms/Footer/Footer';
 import { CookieBanner } from '@/components/CookieBanner';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import { WalletProviderWrapper } from '@/components/providers/WalletProviderWrapper';
+import { FavoritesProvider } from '@/contexts/FavouritesContext';
 import './globals.css';
-
-const inter = Inter({
-  variable: '--font-inter',
-  subsets: ['latin'],
-});
 
 export const metadata: Metadata = {
   title: 'FarmCredit',
@@ -45,6 +40,8 @@ export const viewport: Viewport = {
   userScalable: true,
 };
 
+import { QueryProvider } from '@/components/providers/QueryProvider';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -59,7 +56,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="FarmCredit" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <Script id="theme-init" strategy="beforeInteractive">
           {`
             (function() {
@@ -76,14 +73,18 @@ export default function RootLayout({
             })();
           `}
         </Script>
-        <WalletProviderWrapper>
-          <ToastProvider>
-            <CookieBanner />
-            <Header />
-            {children}
-            <Footer />
-          </ToastProvider>
-        </WalletProviderWrapper>
+        <QueryProvider>
+          <WalletProviderWrapper>
+            <FavoritesProvider>
+              <ToastProvider>
+                <CookieBanner />
+                <Header />
+                {children}
+                <Footer />
+              </ToastProvider>
+            </FavoritesProvider>
+          </WalletProviderWrapper>
+        </QueryProvider>
       </body>
     </html>
   );

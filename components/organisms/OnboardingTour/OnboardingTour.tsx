@@ -49,7 +49,6 @@ export function OnboardingTour(): React.ReactNode {
 
   useEffect(() => {
     if (consumeOnboardingTourRestartRequest()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentStepIndex(0);
 
       setIsOpen(true);
@@ -83,7 +82,6 @@ export function OnboardingTour(): React.ReactNode {
   }, [currentStep.target, isOpen]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     updateTargetRect();
 
     if (!isOpen) {

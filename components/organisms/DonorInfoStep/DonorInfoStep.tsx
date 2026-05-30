@@ -90,10 +90,7 @@ export function DonorInfoStep() {
         </div>
 
         {/* Privacy-Preserving Donation Toggle */}
-        <AnonymousDonationToggle
-          isAnonymous={isAnonymousMode}
-          onToggle={setIsAnonymousMode}
-        />
+        <AnonymousDonationToggle isAnonymous={isAnonymousMode} onToggle={setIsAnonymousMode} />
 
         {/* Form Card */}
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm">

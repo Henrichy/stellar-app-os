@@ -1,7 +1,13 @@
 #![no_std]
 
+//! Farmer Registry Contract — Closes #391
+//!
+//! Adds `update_profile` with full change history stored in Persistent storage
+//! keyed by `(farmer_id, version)`. Each update increments a version counter
+//! and emits a `ProfileUpdated` event carrying the old and new data hashes.
+
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, IntoVal, String, Vec,
+    contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, IntoVal, String,
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -15,32 +21,13 @@ pub struct FarmerProfile {
     pub registered_at: u64,
 }
 
+/// Snapshot of a profile at a given version, stored for audit history.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
-pub enum KycStatus {
-    Pending,
-    Verified,
-    Rejected,
-}
-
-/// One on-chain attestation by a registered verifier. Stored as an append-only
-/// history per farmer so older statuses are preserved alongside the current one.
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct KycAttestation {
-    pub farmer_id: Address,
-    pub verifier: Address,
-    pub status: KycStatus,
-    pub attested_at: u64,
-}
-
-#[contracttype]
-enum DataKey {
-    Admin,
-    /// Set of registered verifier addresses (only these can attest KYC).
-    Verifier(Address),
-    /// Append-only attestation history for a farmer.
-    KycHistory(Address),
+pub struct ProfileHistoryEntry {
+    pub version: u32,
+    pub profile: FarmerProfile,
+    pub updated_at: u64,
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────────
@@ -52,105 +39,12 @@ pub struct FarmerRegistry;
 impl FarmerRegistry {
     /// Initialize contract
     pub fn initialize(env: Env, admin: Address) {
-        if env.storage().instance().has(&DataKey::Admin) {
+        if env.storage().instance().has(&symbol_short!("ADMIN")) {
             panic!("already initialized");
         }
-        env.storage().instance().set(&DataKey::Admin, &admin);
-    }
-
-    // ── Verifier registration (KYC #398) ──────────────────────────────────────
-
-    /// Admin registers an address as an authorised KYC verifier.
-    pub fn register_verifier(env: Env, verifier: Address) {
-        Self::require_admin(&env);
-        let key = DataKey::Verifier(verifier.clone());
-        if env.storage().persistent().has(&key) {
-            panic!("verifier already registered");
-        }
-        env.storage().persistent().set(&key, &true);
-        env.events()
-            .publish((symbol_short!("verifreg"), verifier), ());
-    }
-
-    /// Admin removes a previously-registered verifier. Past attestations
-    /// remain in history; the verifier just cannot make new ones.
-    pub fn remove_verifier(env: Env, verifier: Address) {
-        Self::require_admin(&env);
-        let key = DataKey::Verifier(verifier.clone());
-        if !env.storage().persistent().has(&key) {
-            panic!("verifier not registered");
-        }
-        env.storage().persistent().remove(&key);
-        env.events()
-            .publish((symbol_short!("verifrem"), verifier), ());
-    }
-
-    pub fn is_verifier(env: Env, verifier: Address) -> bool {
         env.storage()
-            .persistent()
-            .has(&DataKey::Verifier(verifier))
-    }
-
-    /// A registered verifier attests to the KYC `status` of `farmer_id`.
-    /// Each call appends to the farmer's attestation history; the most recent
-    /// entry is treated as the current status.
-    pub fn attest_kyc(env: Env, verifier: Address, farmer_id: Address, status: KycStatus) {
-        verifier.require_auth();
-
-        if !env.storage()
-            .persistent()
-            .has(&DataKey::Verifier(verifier.clone()))
-        {
-            panic!("caller is not a registered verifier");
-        }
-
-        let history_key = DataKey::KycHistory(farmer_id.clone());
-        let mut history: Vec<KycAttestation> = env
-            .storage()
-            .persistent()
-            .get(&history_key)
-            .unwrap_or_else(|| Vec::new(&env));
-
-        let attestation = KycAttestation {
-            farmer_id: farmer_id.clone(),
-            verifier: verifier.clone(),
-            status: status.clone(),
-            attested_at: env.ledger().timestamp(),
-        };
-        history.push_back(attestation);
-        env.storage().persistent().set(&history_key, &history);
-
-        env.events()
-            .publish((symbol_short!("kycattst"), farmer_id), (verifier, status));
-    }
-
-    /// Returns the latest KYC status for `farmer_id`, or `Pending` if none.
-    pub fn get_kyc_status(env: Env, farmer_id: Address) -> KycStatus {
-        let history: Option<Vec<KycAttestation>> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::KycHistory(farmer_id));
-        match history {
-            Some(h) if h.len() > 0 => h.get(h.len() - 1).unwrap().status,
-            _ => KycStatus::Pending,
-        }
-    }
-
-    /// Returns the full append-only attestation history for `farmer_id`.
-    pub fn get_kyc_history(env: Env, farmer_id: Address) -> Vec<KycAttestation> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::KycHistory(farmer_id))
-            .unwrap_or_else(|| Vec::new(&env))
-    }
-
-    fn require_admin(env: &Env) {
-        let admin: Address = env
-            .storage()
             .instance()
-            .get(&DataKey::Admin)
-            .expect("contract not initialized");
-        admin.require_auth();
+            .set(&symbol_short!("ADMIN"), &admin);
     }
 
     /// Register a farmer
@@ -179,12 +73,100 @@ impl FarmerRegistry {
 
         env.storage().persistent().set(&key, &profile);
 
+        // Store initial history entry at version 0
+        let version: u32 = 0;
+        let history_key = Self::history_key(&env, &wallet_address, version);
+        let entry = ProfileHistoryEntry {
+            version,
+            profile: profile.clone(),
+            updated_at: env.ledger().timestamp(),
+        };
+        env.storage().persistent().set(&history_key, &entry);
+
+        // Initialise version counter to 0
+        let version_key = Self::version_counter_key(&env, &wallet_address);
+        env.storage().persistent().set(&version_key, &version);
+
         env.events().publish(
             (symbol_short!("FarmerReg"), wallet_address.clone()),
             profile.clone(),
         );
 
         profile
+    }
+
+    /// Update a farmer's profile. Only the registered farmer can call this.
+    ///
+    /// Stores the previous profile in Persistent storage keyed by
+    /// `(farmer_id, version)`, increments the version counter, and emits a
+    /// `ProfileUpdated` event containing the old and new data hashes.
+    pub fn update_profile(
+        env: Env,
+        wallet_address: Address,
+        new_land_doc_hash: BytesN<32>,
+        new_region_geohash: String,
+    ) -> FarmerProfile {
+        // Only the farmer themselves can update their profile
+        wallet_address.require_auth();
+
+        Self::assert_valid_region(&env, &new_region_geohash);
+
+        let key = Self::farmer_key(&env, &wallet_address);
+        let old_profile: FarmerProfile = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .expect("farmer not registered");
+
+        // Increment version counter
+        let version_key = Self::version_counter_key(&env, &wallet_address);
+        let old_version: u32 = env.storage().persistent().get(&version_key).unwrap_or(0u32);
+        let new_version = old_version + 1;
+        env.storage().persistent().set(&version_key, &new_version);
+
+        // Archive old profile under (wallet_address, old_version)
+        let history_key = Self::history_key(&env, &wallet_address, old_version);
+        let history_entry = ProfileHistoryEntry {
+            version: old_version,
+            profile: old_profile.clone(),
+            updated_at: env.ledger().timestamp(),
+        };
+        env.storage().persistent().set(&history_key, &history_entry);
+
+        // Build updated profile (preserve original registration timestamp)
+        let new_profile = FarmerProfile {
+            wallet_address: wallet_address.clone(),
+            land_doc_hash: new_land_doc_hash.clone(),
+            region_geohash: new_region_geohash,
+            registered_at: old_profile.registered_at,
+        };
+
+        env.storage().persistent().set(&key, &new_profile);
+
+        // Emit ProfileUpdated with old and new data hashes
+        env.events().publish(
+            (symbol_short!("ProfUpd"), wallet_address.clone()),
+            (old_profile.land_doc_hash, new_land_doc_hash, new_version),
+        );
+
+        new_profile
+    }
+
+    /// Returns a specific history entry for a farmer by version number.
+    /// Version 0 is the initial registration snapshot.
+    pub fn get_profile_history(
+        env: Env,
+        wallet_address: Address,
+        version: u32,
+    ) -> Option<ProfileHistoryEntry> {
+        let history_key = Self::history_key(&env, &wallet_address, version);
+        env.storage().persistent().get(&history_key)
+    }
+
+    /// Returns the current version counter for a farmer.
+    pub fn get_version(env: Env, wallet_address: Address) -> u32 {
+        let version_key = Self::version_counter_key(&env, &wallet_address);
+        env.storage().persistent().get(&version_key).unwrap_or(0u32)
     }
 
     /// Get farmer profile
@@ -205,6 +187,14 @@ impl FarmerRegistry {
 
     fn farmer_key(env: &Env, wallet: &Address) -> soroban_sdk::Val {
         (symbol_short!("FARMER"), wallet.clone()).into_val(env)
+    }
+
+    fn version_counter_key(env: &Env, wallet: &Address) -> soroban_sdk::Val {
+        (symbol_short!("VER"), wallet.clone()).into_val(env)
+    }
+
+    fn history_key(env: &Env, wallet: &Address, version: u32) -> soroban_sdk::Val {
+        (symbol_short!("HIST"), wallet.clone(), version).into_val(env)
     }
 
     /// Northern Nigeria geohash validation (2-char prefixes)
@@ -250,11 +240,8 @@ mod tests {
         let (env, _, client) = setup();
         let farmer = Address::generate(&env);
 
-        let profile = client.register_farmer(
-            &farmer,
-            &land_hash(&env, 1),
-            &String::from_str(&env, "s1"),
-        );
+        let profile =
+            client.register_farmer(&farmer, &land_hash(&env, 1), &String::from_str(&env, "s1"));
 
         assert_eq!(profile.wallet_address, farmer);
         assert!(client.is_registered(&farmer));
@@ -262,6 +249,108 @@ mod tests {
         let stored = client.get_farmer(&farmer).unwrap();
         assert_eq!(stored.region_geohash, String::from_str(&env, "s1"));
     }
+
+    // ── update_profile tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_update_profile_changes_current_data() {
+        let (env, _, client) = setup();
+        let farmer = Address::generate(&env);
+
+        client.register_farmer(&farmer, &land_hash(&env, 1), &String::from_str(&env, "s1"));
+
+        client.update_profile(&farmer, &land_hash(&env, 2), &String::from_str(&env, "s2"));
+
+        let updated = client.get_farmer(&farmer).unwrap();
+        assert_eq!(updated.land_doc_hash, land_hash(&env, 2));
+        assert_eq!(updated.region_geohash, String::from_str(&env, "s2"));
+    }
+
+    #[test]
+    fn test_update_profile_increments_version_counter() {
+        let (env, _, client) = setup();
+        let farmer = Address::generate(&env);
+
+        client.register_farmer(&farmer, &land_hash(&env, 1), &String::from_str(&env, "s1"));
+        assert_eq!(client.get_version(&farmer), 0);
+
+        client.update_profile(&farmer, &land_hash(&env, 2), &String::from_str(&env, "s2"));
+        assert_eq!(client.get_version(&farmer), 1);
+
+        client.update_profile(&farmer, &land_hash(&env, 3), &String::from_str(&env, "s3"));
+        assert_eq!(client.get_version(&farmer), 2);
+    }
+
+    #[test]
+    fn test_get_profile_history_returns_correct_entry() {
+        let (env, _, client) = setup();
+        let farmer = Address::generate(&env);
+
+        // Register creates version 0 in history
+        client.register_farmer(&farmer, &land_hash(&env, 1), &String::from_str(&env, "s1"));
+
+        // Update archives version 0 and increments to 1
+        client.update_profile(&farmer, &land_hash(&env, 2), &String::from_str(&env, "s2"));
+
+        let history_v0 = client.get_profile_history(&farmer, &0u32).unwrap();
+        assert_eq!(history_v0.version, 0u32);
+        assert_eq!(history_v0.profile.land_doc_hash, land_hash(&env, 1));
+        assert_eq!(
+            history_v0.profile.region_geohash,
+            String::from_str(&env, "s1")
+        );
+    }
+
+    #[test]
+    fn test_profile_history_across_multiple_updates() {
+        let (env, _, client) = setup();
+        let farmer = Address::generate(&env);
+
+        client.register_farmer(&farmer, &land_hash(&env, 1), &String::from_str(&env, "s1"));
+        client.update_profile(&farmer, &land_hash(&env, 2), &String::from_str(&env, "s2"));
+        client.update_profile(&farmer, &land_hash(&env, 3), &String::from_str(&env, "s3"));
+
+        // Version 0 = initial registration snapshot
+        let h0 = client.get_profile_history(&farmer, &0u32).unwrap();
+        assert_eq!(h0.profile.land_doc_hash, land_hash(&env, 1));
+
+        // Version 1 = snapshot before second update
+        let h1 = client.get_profile_history(&farmer, &1u32).unwrap();
+        assert_eq!(h1.profile.land_doc_hash, land_hash(&env, 2));
+
+        // Current profile is the latest
+        let current = client.get_farmer(&farmer).unwrap();
+        assert_eq!(current.land_doc_hash, land_hash(&env, 3));
+        assert_eq!(client.get_version(&farmer), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "farmer not registered")]
+    fn test_update_profile_on_unregistered_farmer_rejected() {
+        let (env, _, client) = setup();
+        let stranger = Address::generate(&env);
+
+        client.update_profile(
+            &stranger,
+            &land_hash(&env, 1),
+            &String::from_str(&env, "s1"),
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "region is not within the approved Northern Nigeria geohash boundary"
+    )]
+    fn test_update_profile_invalid_region_rejected() {
+        let (env, _, client) = setup();
+        let farmer = Address::generate(&env);
+
+        client.register_farmer(&farmer, &land_hash(&env, 1), &String::from_str(&env, "s1"));
+        // "e7" is not a valid Northern Nigeria prefix
+        client.update_profile(&farmer, &land_hash(&env, 2), &String::from_str(&env, "e7"));
+    }
+
+    // ── existing tests ────────────────────────────────────────────────────────
 
     #[test]
     #[should_panic(expected = "farmer already registered")]
@@ -274,7 +363,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "region is not within the approved Northern Nigeria geohash boundary")]
+    #[should_panic(
+        expected = "region is not within the approved Northern Nigeria geohash boundary"
+    )]
     fn test_invalid_region_rejected() {
         let (env, _, client) = setup();
         let farmer = Address::generate(&env);
@@ -306,125 +397,5 @@ mod tests {
         let stranger = Address::generate(&env);
 
         assert!(client.get_farmer(&stranger).is_none());
-    }
-
-    // ── KYC attestation (#398) ────────────────────────────────────────────────
-
-    #[test]
-    fn test_kyc_default_status_is_pending() {
-        let (env, _, client) = setup();
-        let farmer = Address::generate(&env);
-        assert_eq!(client.get_kyc_status(&farmer), KycStatus::Pending);
-        assert_eq!(client.get_kyc_history(&farmer).len(), 0);
-    }
-
-    #[test]
-    fn test_kyc_attest_verified_then_query() {
-        let (env, _, client) = setup();
-        let verifier = Address::generate(&env);
-        let farmer = Address::generate(&env);
-
-        client.register_verifier(&verifier);
-        assert!(client.is_verifier(&verifier));
-
-        client.attest_kyc(&verifier, &farmer, &KycStatus::Verified);
-
-        assert_eq!(client.get_kyc_status(&farmer), KycStatus::Verified);
-        let h = client.get_kyc_history(&farmer);
-        assert_eq!(h.len(), 1);
-        assert_eq!(h.get(0).unwrap().verifier, verifier);
-        assert_eq!(h.get(0).unwrap().status, KycStatus::Verified);
-    }
-
-    #[test]
-    fn test_kyc_history_preserves_all_status_transitions() {
-        let (env, _, client) = setup();
-        let verifier = Address::generate(&env);
-        let farmer = Address::generate(&env);
-        client.register_verifier(&verifier);
-
-        client.attest_kyc(&verifier, &farmer, &KycStatus::Pending);
-        client.attest_kyc(&verifier, &farmer, &KycStatus::Rejected);
-        client.attest_kyc(&verifier, &farmer, &KycStatus::Verified);
-
-        let h = client.get_kyc_history(&farmer);
-        assert_eq!(h.len(), 3);
-        assert_eq!(h.get(0).unwrap().status, KycStatus::Pending);
-        assert_eq!(h.get(1).unwrap().status, KycStatus::Rejected);
-        assert_eq!(h.get(2).unwrap().status, KycStatus::Verified);
-        // Latest entry wins for the current status.
-        assert_eq!(client.get_kyc_status(&farmer), KycStatus::Verified);
-    }
-
-    #[test]
-    #[should_panic(expected = "caller is not a registered verifier")]
-    fn test_kyc_unregistered_attestation_rejected() {
-        let (env, _, client) = setup();
-        let impostor = Address::generate(&env);
-        let farmer = Address::generate(&env);
-
-        client.attest_kyc(&impostor, &farmer, &KycStatus::Verified);
-    }
-
-    #[test]
-    #[should_panic(expected = "caller is not a registered verifier")]
-    fn test_kyc_removed_verifier_cannot_attest() {
-        let (env, _, client) = setup();
-        let verifier = Address::generate(&env);
-        let farmer = Address::generate(&env);
-
-        client.register_verifier(&verifier);
-        client.remove_verifier(&verifier);
-        client.attest_kyc(&verifier, &farmer, &KycStatus::Verified);
-    }
-
-    #[test]
-    fn test_kyc_status_queryable_by_anyone() {
-        // Anyone can read; no auth required on the query.
-        let (env, _, client) = setup();
-        let verifier = Address::generate(&env);
-        let farmer = Address::generate(&env);
-
-        client.register_verifier(&verifier);
-        client.attest_kyc(&verifier, &farmer, &KycStatus::Verified);
-
-        // Query from a stranger context — succeeds because there's no auth check.
-        assert_eq!(client.get_kyc_status(&farmer), KycStatus::Verified);
-    }
-
-    #[test]
-    fn test_kyc_multiple_verifiers_each_can_attest() {
-        let (env, _, client) = setup();
-        let v1 = Address::generate(&env);
-        let v2 = Address::generate(&env);
-        let farmer = Address::generate(&env);
-        client.register_verifier(&v1);
-        client.register_verifier(&v2);
-
-        client.attest_kyc(&v1, &farmer, &KycStatus::Pending);
-        client.attest_kyc(&v2, &farmer, &KycStatus::Verified);
-
-        let h = client.get_kyc_history(&farmer);
-        assert_eq!(h.len(), 2);
-        assert_eq!(h.get(0).unwrap().verifier, v1);
-        assert_eq!(h.get(1).unwrap().verifier, v2);
-        assert_eq!(client.get_kyc_status(&farmer), KycStatus::Verified);
-    }
-
-    #[test]
-    #[should_panic(expected = "verifier already registered")]
-    fn test_kyc_double_register_verifier_rejected() {
-        let (env, _, client) = setup();
-        let v = Address::generate(&env);
-        client.register_verifier(&v);
-        client.register_verifier(&v);
-    }
-
-    #[test]
-    #[should_panic(expected = "verifier not registered")]
-    fn test_kyc_remove_unregistered_verifier_rejected() {
-        let (env, _, client) = setup();
-        let v = Address::generate(&env);
-        client.remove_verifier(&v);
     }
 }

@@ -134,7 +134,11 @@ export function MobileDrawer({ isOpen, onClose, onOpenWallet }: MobileDrawerProp
         </div>
 
         {/* Navigation */}
-        <nav className="flex flex-col p-4 space-y-1" role="navigation" aria-label="Mobile main navigation">
+        <nav
+          className="flex flex-col p-4 space-y-1"
+          role="navigation"
+          aria-label="Mobile main navigation"
+        >
           {NAV_LINKS.map(({ href, labelKey, icon: Icon }) => {
             const isActive = pathname === href;
             return (

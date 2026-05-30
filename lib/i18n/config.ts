@@ -1,4 +1,4 @@
-import i18n, { InitOptions } from 'i18next';
+import i18n, { type InitOptions } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import enTranslations from '@/lib/i18n/locales/en.json';
@@ -44,10 +44,7 @@ const i18nConfig: InitOptions = {
 };
 
 if (!i18n.isInitialized) {
-  i18n
-    .use(LanguageDetector)
-    .use(initReactI18next)
-    .init(i18nConfig);
+  i18n.use(LanguageDetector).use(initReactI18next).init(i18nConfig);
 }
 
 export default i18n;

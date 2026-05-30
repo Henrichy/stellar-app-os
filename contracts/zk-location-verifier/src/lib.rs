@@ -149,10 +149,8 @@ impl ZkLocationVerifier {
 
         env.storage().persistent().set(&key, &record);
 
-        env.events().publish(
-            (symbol_short!("zkCommit"), farmer),
-            commitment,
-        );
+        env.events()
+            .publish((symbol_short!("zkCommit"), farmer), commitment);
     }
 
     /// Step 2 — Admin approves a commitment after off-chain ZK circuit verification.
@@ -265,7 +263,9 @@ impl ZkLocationVerifier {
 
     /// Returns the verification record for a commitment hash.
     pub fn get_verification(env: Env, commitment: BytesN<32>) -> Option<LocationVerification> {
-        env.storage().persistent().get(&Self::verif_key(&env, &commitment))
+        env.storage()
+            .persistent()
+            .get(&Self::verif_key(&env, &commitment))
     }
 
     /// Returns the proof digest stored at approval time, if any.
@@ -347,7 +347,10 @@ impl ZkLocationVerifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::{Address as _, Ledger as _}, Address, BytesN, Env, String};
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger as _},
+        Address, BytesN, Env, String,
+    };
 
     fn setup() -> (Env, Address, ZkLocationVerifierClient<'static>) {
         let env = Env::default();

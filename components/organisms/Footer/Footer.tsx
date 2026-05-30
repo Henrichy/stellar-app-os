@@ -23,34 +23,6 @@ interface SocialLink {
   ariaLabel: string;
 }
 
-const aboutSection: FooterSection = {
-  title: "About",
-  links: [
-    { label: "About FarmCredit", href: "#about" },
-    { label: "Blog", href: "/blog" },
-    { label: "Documentation", href: "#docs" },
-  ],
-};
-
-const resourcesSection: FooterSection = {
-  title: "Resources",
-  links: [
-    { label: "Settings", href: "/settings" },
-    { label: "API Documentation", href: "/api-docs" },
-    { label: "Developer Guide", href: "#dev-guide" },
-    { label: "Community", href: "#community" },
-  ],
-};
-
-
-const legalSection: FooterSection = {
-  title: 'Legal',
-  links: [
-    { label: 'Terms of Service', href: '#terms' },
-    { label: 'Privacy Policy', href: '/privacy' },
-    { label: 'Cookie Policy', href: '/privacy#cookies-and-similar-technologies' },
-  ],
-};
 function buildFooterSections(t: TFunction): FooterSection[] {
   return [
     {
@@ -79,7 +51,6 @@ function buildFooterSections(t: TFunction): FooterSection[] {
     },
   ];
 }
-
 
 function buildSocialLinks(t: TFunction): SocialLink[] {
   return [
