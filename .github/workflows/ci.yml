@@ -76,28 +76,25 @@ jobs:
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
-      - name: Validate required NEXT_PUBLIC_* vars are not placeholders
+      - name: Validate env vars are not placeholders
         run: |
           errors=0
           while IFS= read -r line; do
-            # Skip comments and blank lines
-            [[ "$line" =~ ^# ]] && continue
-            [[ -z "$line" ]] && continue
+            [[ "$line" =~ ^# || -z "$line" ]] && continue
             var="${line%%=*}"
             val="${line#*=}"
-            val="${val#\"}"; val="${val%\"}"   # strip quotes
+            val="${val#\"}"; val="${val%\"}"
             if [[ "$val" == REPLACE_WITH_* ]]; then
-              echo "❌ $var is still a placeholder: $val"
-              ((errors++))
+              echo "⚠️  $var still contains a placeholder: $val"
+              errors=$(( errors + 1 ))
             fi
           done < .env.example
           if (( errors > 0 )); then
-            echo "⚠️  $errors env var(s) still contain placeholder values."
-            echo "Fix them in .env before deploying to production."
+            echo "Found $errors placeholder(s). Update .env before production."
           else
             echo "✅ All env vars look good."
           fi
-          # Warn only — don't block PRs on placeholder vars during development
+          # Non-blocking — placeholders are expected during development
 
   # ═════════════════════════════════════════════════════════════════════════════
   # PHASE 2 — Expensive gate (build).  Waits for all Phase-1 gates to pass.
