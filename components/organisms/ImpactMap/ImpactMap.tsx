@@ -3,19 +3,31 @@
 import { useEffect, type JSX } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import type { RegionMarker } from '@/lib/api/impactData';
+import type { Tree, TreeStatus } from '@/lib/types/tree';
 import 'leaflet/dist/leaflet.css';
 
 interface ImpactMapProps {
   regions: RegionMarker[];
+  trees?: Tree[];
 }
 
 function radiusForTrees(trees: number): number {
   return 8 + Math.min(trees / 40_000, 1) * 32;
 }
 
-export function ImpactMap({ regions }: ImpactMapProps): JSX.Element {
+function colorForStatus(status: TreeStatus): { fill: string; stroke: string } {
+  const colors: Record<TreeStatus, { fill: string; stroke: string }> = {
+    funded: { fill: '#94a3b8', stroke: '#64748b' },
+    planted: { fill: '#14B6E7', stroke: '#0ea5e9' },
+    verified: { fill: '#00B36B', stroke: '#059669' },
+    completed: { fill: '#3E1BDB', stroke: '#4f46e5' },
+    failed: { fill: '#ef4444', stroke: '#dc2626' },
+  };
+  return colors[status];
+}
+
+export function ImpactMap({ regions, trees = [] }: ImpactMapProps): JSX.Element {
   useEffect(() => {
-    // Fix Leaflet default icon path issue in Next.js
     void import('leaflet').then((L) => {
       // @ts-expect-error — Leaflet internal
       delete L.Icon.Default.prototype._getIconUrl;
@@ -47,7 +59,7 @@ export function ImpactMap({ regions }: ImpactMapProps): JSX.Element {
           pathOptions={{
             color: '#14B6E7',
             fillColor: '#00B36B',
-            fillOpacity: 0.55,
+            fillOpacity: 0.35,
             weight: 2,
           }}
         >
@@ -60,6 +72,30 @@ export function ImpactMap({ regions }: ImpactMapProps): JSX.Element {
           </Tooltip>
         </CircleMarker>
       ))}
+      {trees.map((tree) => {
+        const colors = colorForStatus(tree.status);
+        return (
+          <CircleMarker
+            key={tree.id}
+            center={[tree.lat, tree.lng]}
+            radius={6}
+            pathOptions={{
+              color: colors.stroke,
+              fillColor: colors.fill,
+              fillOpacity: 0.85,
+              weight: 2,
+            }}
+          >
+            <Tooltip>
+              <strong>{tree.treeId}</strong>
+              <br />
+              {tree.species} · {tree.region}
+              <br />
+              Status: {tree.status}
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
     </MapContainer>
   );
 }
