@@ -10,6 +10,7 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/molecules/Card';
+import { OnboardingTour } from '@/components/organisms/OnboardingTour/OnboardingTour';
 
 export default function Home() {
   return (
@@ -58,6 +59,9 @@ export default function Home() {
           </Button>
           <Button data-tour-id="purchase-credits-button" asChild variant="outline" size="lg" className="w-full">
             <Link href="/credits/purchase">Purchase Carbon Credits</Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="w-full">
+            <Link href="/leaderboard">View Leaderboard</Link>
           </Button>
         </CardContent>
       </Card>

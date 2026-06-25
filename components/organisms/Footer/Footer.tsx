@@ -17,6 +17,7 @@ const aboutSection: FooterSection = {
   links: [
     { label: 'About FarmCredit', href: '#about' },
     { label: 'Blog', href: '/blog' },
+    { label: 'Leaderboard', href: '/leaderboard' },
     { label: 'Documentation', href: '#docs' },
   ],
 };
