@@ -45,6 +45,16 @@ export interface CreditSelectionProps {
 
 export const BULK_PURCHASE_MIN_QUANTITY = 1000;
 
+export type MetadataStorageType = 'on-chain' | 'ipfs' | 'none';
+
+export interface CorporateMetadata {
+  companyName?: string;
+  initiativeDescription?: string;
+  initiativeUrl?: string;
+  storageType?: MetadataStorageType;
+  storageRef?: string;
+}
+
 export interface BulkPurchaseMetadata {
   companyName?: string;
   initiativeDescription?: string;
@@ -63,7 +73,8 @@ export interface BulkPurchaseOrder {
 }
 
 export interface BulkPurchaseResult {
-  xdr: string;
-  memo?: string;
+  transactionXdr: string;
+  networkPassphrase: string;
   ipfsCid?: string;
+  memoValue?: string;
 }
