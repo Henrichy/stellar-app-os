@@ -135,6 +135,8 @@ enum DataKey {
     OracleReport(u64),
     /// Per-tree co-funded escrow record
     TreeFunding(u64),
+    /// Track used proof hashes for replay attack prevention (#481)
+    UsedProof(BytesN<32>),
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────────
@@ -348,6 +350,12 @@ impl TreeEscrow {
             panic!("verified tree count exceeds donation");
         }
 
+        // Replay attack prevention (#481): reject duplicate proof hashes
+        let proof_key = DataKey::UsedProof(proof_hash.clone());
+        if env.storage().persistent().has(&proof_key) {
+            panic!("proof hash already used: replay attack prevented");
+        }
+
         let tranche1 = (rec.total_amount * TRANCHE_1_BPS) / BPS_DENOM;
         let tree_unit = Self::compute_token_unit(tree_decimals);
         let tree_tokens = verified_tree_count
@@ -368,7 +376,8 @@ impl TreeEscrow {
         rec.tree_tokens_minted = tree_tokens;
         rec.status = EscrowStatus::Planted;
         rec.planted_at = env.ledger().timestamp();
-        rec.planting_proof = proof_hash;
+        rec.planting_proof = proof_hash.clone();
+        env.storage().persistent().set(&proof_key, &true);
 
         env.storage().persistent().set(&key, &rec);
 
@@ -414,6 +423,12 @@ impl TreeEscrow {
             panic!("survival rate below minimum");
         }
 
+        // Replay attack prevention (#481): reject duplicate proof hashes
+        let proof_key = DataKey::UsedProof(proof_hash.clone());
+        if env.storage().persistent().has(&proof_key) {
+            panic!("proof hash already used: replay attack prevented");
+        }
+
         let tranche2 = rec.total_amount - rec.released;
         if tranche2 <= 0 {
             panic!("nothing left to release");
@@ -427,8 +442,9 @@ impl TreeEscrow {
 
         rec.released += tranche2;
         rec.status = EscrowStatus::Completed;
-        rec.survival_proof = proof_hash;
+        rec.survival_proof = proof_hash.clone();
         rec.survival_rate_percent = survival_rate_percent;
+        env.storage().persistent().set(&proof_key, &true);
 
         env.storage().persistent().set(&key, &rec);
 
@@ -1002,10 +1018,12 @@ mod tests {
             BatchSlot {
                 farmer: f1.clone(),
                 amount: 1_500,
+                gift_recipient: None,
             },
             BatchSlot {
                 farmer: f2.clone(),
                 amount: 2_500,
+                gift_recipient: None,
             },
         ];
         ctx.client.batch_deposit(&ctx.donor, &ctx.token, &slots);
@@ -1227,5 +1245,97 @@ mod tests {
         ctx.client.submit_survival_report(&ctx.oracle, &7, &80);
         ctx.client.release_proportional(&7, &1_000);
         ctx.client.release_proportional(&7, &1);
+    }
+
+    // ── Replay attack prevention (#481) ────────────────────────────────────────
+
+    #[test]
+    #[should_panic(expected = "proof hash already used")]
+    fn test_planting_proof_replay_across_escrows_rejected() {
+        let ctx = setup();
+        let farmer_a = Address::generate(&ctx.env);
+        let farmer_b = Address::generate(&ctx.env);
+        let donor2 = Address::generate(&ctx.env);
+        fund(&ctx.env, &ctx.token, &donor2, 10_000);
+
+        ctx.client
+            .deposit(&ctx.donor, &farmer_a, &ctx.token, &10_000, &1);
+        ctx.client
+            .verify_planting(&farmer_a, &proof(&ctx.env, 1), &1);
+
+        ctx.client
+            .deposit(&donor2, &farmer_b, &ctx.token, &10_000, &1);
+        ctx.client
+            .verify_planting(&farmer_b, &proof(&ctx.env, 1), &1);
+    }
+
+    #[test]
+    fn test_planting_proof_different_hashes_across_escrows_allowed() {
+        let ctx = setup();
+        let farmer_a = Address::generate(&ctx.env);
+        let farmer_b = Address::generate(&ctx.env);
+        let donor2 = Address::generate(&ctx.env);
+        fund(&ctx.env, &ctx.token, &donor2, 10_000);
+
+        ctx.client
+            .deposit(&ctx.donor, &farmer_a, &ctx.token, &10_000, &1);
+        ctx.client
+            .verify_planting(&farmer_a, &proof(&ctx.env, 1), &1);
+
+        ctx.client
+            .deposit(&donor2, &farmer_b, &ctx.token, &10_000, &1);
+        ctx.client
+            .verify_planting(&farmer_b, &proof(&ctx.env, 2), &1);
+
+        assert_eq!(
+            ctx.client.get_record(&farmer_b).unwrap().status,
+            EscrowStatus::Planted
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "proof hash already used")]
+    fn test_survival_proof_replay_across_escrows_rejected() {
+        let ctx = setup();
+        let farmer_a = Address::generate(&ctx.env);
+        let farmer_b = Address::generate(&ctx.env);
+        let donor2 = Address::generate(&ctx.env);
+        fund(&ctx.env, &ctx.token, &donor2, 10_000);
+
+        ctx.client
+            .deposit(&ctx.donor, &farmer_a, &ctx.token, &10_000, &1);
+        ctx.client
+            .verify_planting(&farmer_a, &proof(&ctx.env, 1), &1);
+
+        ctx.client
+            .deposit(&donor2, &farmer_b, &ctx.token, &10_000, &1);
+        ctx.client
+            .verify_planting(&farmer_b, &proof(&ctx.env, 2), &1);
+
+        ctx.env
+            .ledger()
+            .with_mut(|l| l.timestamp += SIX_MONTHS_SECS + 1);
+
+        ctx.client
+            .verify_survival(&farmer_a, &proof(&ctx.env, 3), &70);
+        ctx.client
+            .verify_survival(&farmer_b, &proof(&ctx.env, 3), &70);
+    }
+
+    #[test]
+    #[should_panic(expected = "proof hash already used")]
+    fn test_planting_proof_replay_as_survival_rejected() {
+        let ctx = setup();
+        ctx.client
+            .deposit(&ctx.donor, &ctx.farmer, &ctx.token, &10_000, &1);
+        ctx.client
+            .verify_planting(&ctx.farmer, &proof(&ctx.env, 1), &1);
+
+        ctx.env
+            .ledger()
+            .with_mut(|l| l.timestamp += SIX_MONTHS_SECS + 1);
+
+        ctx.client
+            .verify_survival(&ctx.farmer, &proof(&ctx.env, 1), &70);
     }
 }
