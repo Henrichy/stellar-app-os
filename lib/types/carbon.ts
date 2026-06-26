@@ -42,3 +42,28 @@ export interface CreditSelectionProps {
   projects: CarbonProject[];
   onSelectionChange?: (selection: CreditSelectionState) => void;
 }
+
+export const BULK_PURCHASE_MIN_QUANTITY = 1000;
+
+export interface BulkPurchaseMetadata {
+  companyName?: string;
+  initiativeDescription?: string;
+  initiativeUrl?: string;
+  storageType?: 'on-chain' | 'ipfs' | 'none';
+  storageRef?: string;
+}
+
+export interface BulkPurchaseOrder {
+  projectId: string;
+  quantity: number;
+  totalPrice: number;
+  buyerPublicKey: string;
+  network: 'testnet' | 'mainnet';
+  metadata?: BulkPurchaseMetadata;
+}
+
+export interface BulkPurchaseResult {
+  xdr: string;
+  memo?: string;
+  ipfsCid?: string;
+}
