@@ -41,6 +41,9 @@ const SIX_MONTHS_SECS: u64 = 60 * 60 * 24 * 7 * 26;
 /// Maximum slots per batch deposit (Stellar operation limit safety margin)
 const MAX_BATCH_SIZE: u32 = 50;
 
+/// Referral reward amount in XLM (stroops) - 10 XLM
+const REFERRAL_REWARD: i128 = 10_000_0000;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 #[contracttype]
@@ -69,6 +72,7 @@ pub struct EscrowRecord {
     pub planting_proof: BytesN<32>,
     pub survival_proof: BytesN<32>,
     pub survival_rate_percent: u32,
+    pub referrer: Option<Address>,
 }
 
 /// A single slot in a batch deposit: one farmer address and the amount for that tree.
@@ -78,6 +82,7 @@ pub struct BatchSlot {
     pub farmer: Address,
     pub amount: i128,
     pub gift_recipient: Option<Address>,
+    pub referrer: Option<Address>,
 }
 
 /// Oracle-submitted survival report for a single tree.
@@ -135,6 +140,8 @@ enum DataKey {
     OracleReport(u64),
     /// Per-tree co-funded escrow record
     TreeFunding(u64),
+    /// Track if a sponsor has completed their first tree (for referral rewards)
+    FirstTreeCompleted(Address),
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────────
@@ -191,7 +198,7 @@ impl TreeEscrow {
         amount: i128,
         tree_count: i128,
     ) {
-        Self::deposit_internal(env, donor, None, farmer, token, amount, tree_count);
+        Self::deposit_internal(env, donor, None, farmer, token, amount, tree_count, None);
     }
 
     /// Sponsor trees as a gift - NFT receipt and carbon credits go to a different recipient address.
@@ -210,7 +217,35 @@ impl TreeEscrow {
         amount: i128,
         tree_count: i128,
     ) {
-        Self::deposit_internal(env, donor, Some(recipient_wallet), farmer, token, amount, tree_count);
+        Self::deposit_internal(env, donor, Some(recipient_wallet), farmer, token, amount, tree_count, None);
+    }
+
+    /// Sponsor trees as a gift with referral - combines gift sponsorship with referral tracking.
+    pub fn sponsor_as_gift_with_referral(
+        env: Env,
+        donor: Address,
+        recipient_wallet: Address,
+        farmer: Address,
+        token: Address,
+        amount: i128,
+        tree_count: i128,
+        referrer: Address,
+    ) {
+        Self::deposit_internal(env, donor, Some(recipient_wallet), farmer, token, amount, tree_count, Some(referrer));
+    }
+
+    /// Deposit with referral - allows a new sponsor to specify who referred them.
+    /// When this sponsor completes their first tree, the referrer will receive a reward.
+    pub fn deposit_with_referral(
+        env: Env,
+        donor: Address,
+        farmer: Address,
+        token: Address,
+        amount: i128,
+        tree_count: i128,
+        referrer: Address,
+    ) {
+        Self::deposit_internal(env, donor, None, farmer, token, amount, tree_count, Some(referrer));
     }
 
     fn deposit_internal(
@@ -221,6 +256,7 @@ impl TreeEscrow {
         token: Address,
         amount: i128,
         tree_count: i128,
+        referrer: Option<Address>,
     ) {
         donor.require_auth();
 
@@ -256,6 +292,7 @@ impl TreeEscrow {
                 planting_proof: empty_hash.clone(),
                 survival_proof: empty_hash,
                 survival_rate_percent: 0,
+                referrer,
             },
         );
 
@@ -312,6 +349,7 @@ impl TreeEscrow {
                     planting_proof: empty_hash.clone(),
                     survival_proof: empty_hash.clone(),
                     survival_rate_percent: 0,
+                    referrer: slot.referrer.clone(),
                 },
             );
             env.events()
@@ -322,6 +360,7 @@ impl TreeEscrow {
     }
 
     /// Admin-verified planting: releases Tranche 1 (75%) and mints TREE rewards.
+    /// Also issues referral reward if this is the sponsor's first tree and they were referred.
     pub fn verify_planting(
         env: Env,
         farmer: Address,
@@ -362,6 +401,24 @@ impl TreeEscrow {
         
         let recipient = rec.gift_recipient.clone().unwrap_or_else(|| rec.donor.clone());
         token::StellarAssetClient::new(&env, &tree_token).mint(&recipient, &tree_tokens);
+
+        // Referral reward: if this sponsor was referred and this is their first tree,
+        // issue a reward to the referrer
+        if let Some(referrer) = &rec.referrer {
+            let sponsor_key = DataKey::FirstTreeCompleted(recipient.clone());
+            if !env.storage().persistent().has(&sponsor_key) {
+                // This is the sponsor's first tree - issue referral reward
+                token::Client::new(&env, &rec.token).transfer(
+                    &env.current_contract_address(),
+                    referrer,
+                    &REFERRAL_REWARD,
+                );
+                // Mark sponsor as having completed their first tree
+                env.storage().persistent().set(&sponsor_key, &true);
+                env.events()
+                    .publish((symbol_short!("referral"), referrer), REFERRAL_REWARD);
+            }
+        }
 
         rec.released += tranche1;
         rec.verified_tree_count = verified_tree_count;
@@ -1227,5 +1284,139 @@ mod tests {
         ctx.client.submit_survival_report(&ctx.oracle, &7, &80);
         ctx.client.release_proportional(&7, &1_000);
         ctx.client.release_proportional(&7, &1);
+    }
+
+    // ── Referral rewards (#495) ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_referral_reward_issued_on_first_tree() {
+        let ctx = setup();
+        let referrer = Address::generate(&ctx.env);
+        let new_sponsor = Address::generate(&ctx.env);
+        let farmer = Address::generate(&ctx.env);
+
+        // Fund the referrer with enough XLM to cover the reward
+        fund(&ctx.env, &ctx.token, &ctx.env.current_contract_address(), REFERRAL_REWARD);
+
+        let referrer_balance_before = balance(&ctx.env, &ctx.token, &referrer);
+
+        // New sponsor deposits with referral
+        ctx.client.deposit_with_referral(
+            &new_sponsor,
+            &farmer,
+            &ctx.token,
+            &10_000,
+            &42,
+            &referrer,
+        );
+
+        // Verify planting - this should trigger referral reward
+        ctx.client.verify_planting(&farmer, &proof(&ctx.env, 1), &42);
+
+        let referrer_balance_after = balance(&ctx.env, &ctx.token, &referrer);
+        assert_eq!(
+            referrer_balance_after - referrer_balance_before,
+            REFERRAL_REWARD
+        );
+    }
+
+    #[test]
+    fn test_referral_reward_only_issued_once_per_sponsor() {
+        let ctx = setup();
+        let referrer = Address::generate(&ctx.env);
+        let sponsor = Address::generate(&ctx.env);
+        let farmer1 = Address::generate(&ctx.env);
+        let farmer2 = Address::generate(&ctx.env);
+
+        fund(&ctx.env, &ctx.token, &ctx.env.current_contract_address(), REFERRAL_REWARD);
+
+        let referrer_balance_before = balance(&ctx.env, &ctx.token, &referrer);
+
+        // First tree with referral
+        ctx.client.deposit_with_referral(
+            &sponsor,
+            &farmer1,
+            &ctx.token,
+            &10_000,
+            &42,
+            &referrer,
+        );
+        ctx.client.verify_planting(&farmer1, &proof(&ctx.env, 1), &42);
+
+        let referrer_balance_after_first = balance(&ctx.env, &ctx.token, &referrer);
+
+        // Second tree with same referrer - should not issue reward
+        ctx.client.deposit_with_referral(
+            &sponsor,
+            &farmer2,
+            &ctx.token,
+            &10_000,
+            &42,
+            &referrer,
+        );
+        ctx.client.verify_planting(&farmer2, &proof(&ctx.env, 2), &42);
+
+        let referrer_balance_after_second = balance(&ctx.env, &ctx.token, &referrer);
+
+        // Reward should only be issued once
+        assert_eq!(
+            referrer_balance_after_first - referrer_balance_before,
+            REFERRAL_REWARD
+        );
+        assert_eq!(referrer_balance_after_second, referrer_balance_after_first);
+    }
+
+    #[test]
+    fn test_no_referral_reward_without_referrer() {
+        let ctx = setup();
+        let sponsor = Address::generate(&ctx.env);
+        let farmer = Address::generate(&ctx.env);
+
+        fund(&ctx.env, &ctx.token, &ctx.env.current_contract_address(), REFERRAL_REWARD);
+
+        let contract_balance_before = balance(&ctx.env, &ctx.token, &ctx.env.current_contract_address());
+
+        // Deposit without referrer
+        ctx.client.deposit(&sponsor, &farmer, &ctx.token, &10_000, &42);
+        ctx.client.verify_planting(&farmer, &proof(&ctx.env, 1), &42);
+
+        let contract_balance_after = balance(&ctx.env, &ctx.token, &ctx.env.current_contract_address());
+
+        // Contract balance should not change (no reward issued)
+        assert_eq!(contract_balance_after, contract_balance_before);
+    }
+
+    #[test]
+    fn test_referral_reward_with_gift_sponsorship() {
+        let ctx = setup();
+        let referrer = Address::generate(&ctx.env);
+        let donor = Address::generate(&ctx.env);
+        let gift_recipient = Address::generate(&ctx.env);
+        let farmer = Address::generate(&ctx.env);
+
+        fund(&ctx.env, &ctx.token, &ctx.env.current_contract_address(), REFERRAL_REWARD);
+
+        let referrer_balance_before = balance(&ctx.env, &ctx.token, &referrer);
+
+        // Sponsor as gift with referral
+        ctx.client.sponsor_as_gift_with_referral(
+            &donor,
+            &gift_recipient,
+            &farmer,
+            &ctx.token,
+            &10_000,
+            &42,
+            &referrer,
+        );
+
+        ctx.client.verify_planting(&farmer, &proof(&ctx.env, 1), &42);
+
+        let referrer_balance_after = balance(&ctx.env, &ctx.token, &referrer);
+
+        // Reward should be issued to referrer
+        assert_eq!(
+            referrer_balance_after - referrer_balance_before,
+            REFERRAL_REWARD
+        );
     }
 }
