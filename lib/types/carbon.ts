@@ -62,3 +62,31 @@ export interface SponsorOffset {
   totalGrams: bigint;
   totalKg: number;
 }
+
+export const BULK_PURCHASE_MIN_QUANTITY = 1000;
+
+export type MetadataStorageType = 'on-chain' | 'ipfs' | 'none';
+
+export interface CorporateMetadata {
+  companyName: string;
+  initiativeDescription: string;
+  initiativeUrl?: string;
+  storageType: MetadataStorageType;
+  storageRef?: string;
+}
+
+export interface BulkPurchaseOrder {
+  projectId: string;
+  quantity: number;
+  totalPrice: number;
+  buyerPublicKey: string;
+  network: 'testnet' | 'mainnet';
+  metadata?: CorporateMetadata;
+}
+
+export interface BulkPurchaseResult {
+  transactionXdr: string;
+  networkPassphrase: string;
+  ipfsCid?: string;
+  memoValue?: string;
+}
