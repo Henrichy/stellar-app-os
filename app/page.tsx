@@ -15,7 +15,14 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/molecules/Card';
-import { OnboardingTour } from '@/components/organisms/OnboardingTour/OnboardingTour';
+import { useToast } from '@/hooks/useToast';
+import { TransactionHistoryModal } from '@/components/ui/TransactionHistoryModal';
+import { useAppTranslation } from '@/hooks/useTranslation';
+
+export default function Home(): JSX.Element {
+  const [showTx, setShowTx] = useState(false);
+  const { addToast } = useToast();
+  const { t } = useAppTranslation();
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-8">
@@ -109,17 +116,11 @@ import { OnboardingTour } from '@/components/organisms/OnboardingTour/Onboarding
           <Button asChild variant="outline" size="lg" className="w-full">
             <Link href="/api-docs">Explore API Documentation</Link>
           </Button>
-          <Button
-            data-tour-id="purchase-credits-button"
-            asChild
-            variant="outline"
-            size="lg"
-            className="w-full"
-          >
-            <Link href="/credits/purchase">Purchase Carbon Credits</Link>
-          </Button>
           <Button asChild variant="outline" size="lg" className="w-full">
             <Link href="/leaderboard">View Leaderboard</Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="w-full">
+            <Link href="/planter/register">Register as Planter</Link>
           </Button>
         </CardContent>
       </Card>
