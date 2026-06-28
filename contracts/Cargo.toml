@@ -19,6 +19,7 @@ members = [
     "treasury",
     "platform-governance",
     "subscription-sponsorship",
+    "planter-registry",
 ]
 resolver = "2"
 
