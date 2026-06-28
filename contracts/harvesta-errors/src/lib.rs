@@ -20,13 +20,13 @@ pub enum HarvestaError {
     AlreadyPaused = 5,
     NotPaused = 6,
     NoPendingAdmin = 7,
-    ContractMustBeTreeTokenAdmin = 8,
+    ContractMustBeTreeTokenAdm = 8,
 
     // ── Amount / value validation (9–15) ──────────────────────────────────────
     AmountMustBePositive = 9,
     TreeCountMustBePositive = 10,
     VerifiedCountMustBePositive = 11,
-    VerifiedCountExceedsDonation = 12,
+    VerifiedCountExceedsDon = 12,
     InvalidPayoutAmount = 13,
     BurnAmountMustBePositive = 14,
     SlotAmountMustBePositive = 15,
@@ -67,8 +67,8 @@ pub enum HarvestaError {
     NotBuyerOrSeller = 42,
     MilestoneReleaseBlocked = 43,
     MilestoneAlreadyProcessed = 44,
-    CompletionPercentageOutOfRange = 45,
-    TotalReleasedExceedsMilestone = 46,
+    CompletionPercentOutOfRange = 45,
+    TotalReleasedExceedsMile = 46,
 
     // ── Naira payout (47–54) ──────────────────────────────────────────────────
     PendingPayoutAlreadyExists = 47,
@@ -83,7 +83,7 @@ pub enum HarvestaError {
     // ── Aggregate impact verifier (55–59) ─────────────────────────────────────
     FarmCountMustBePositive = 55,
     PeriodEndBeforeStart = 56,
-    ProofDigestAlreadyRegistered = 57,
+    ProofDigestAlreadyReg = 57,
     ProofNotFound = 58,
     ProofAlreadyRevoked = 59,
 
@@ -100,7 +100,7 @@ pub enum HarvestaError {
 
     // ── Location / ZK proofs (65–70) ──────────────────────────────────────────
     OutsideNigeriaRegion = 65,
-    ProofCommitmentAlreadyRegistered = 66,
+    ProofCommitmentAlreadyReg = 66,
     CommitmentAlreadySubmitted = 67,
     CommitmentNotFound = 68,
     CommitmentNotPending = 69,
@@ -113,8 +113,8 @@ pub enum HarvestaError {
     DonationCancelled = 74,
     IntervalNotElapsed = 75,
     ProjectNotRegistered = 76,
-    AmountPerIntervalMustBePositive = 77,
-    IntervalSecondsMustBePositive = 78,
+    AmountPerIntervalMustBePos = 77,
+    IntervalSecondsMustBePos = 78,
     RecurringDonationNotFound = 79,
 
     // ── Arithmetic overflows (80–81) ──────────────────────────────────────────
