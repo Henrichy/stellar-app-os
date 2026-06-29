@@ -8,6 +8,7 @@
  * Horizon and the contract layer are fully mocked so no real network is hit.
  */
 
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { cacheGet, cacheSet, cacheClear } from '@/lib/api/tree-registry-cache';
 import { getTreeList, getTreeById } from '@/lib/api/tree-registry';
 
@@ -117,7 +118,15 @@ describe('getTreeList', () => {
   it('free-text search finds matching trees', async () => {
     const result = await getTreeList({ search: 'Mangrove' });
     expect(result.trees.length).toBeGreaterThan(0);
-    expect(result.trees.every((t) => t.species === 'Mangrove')).toBe(true);
+    // All results must contain 'mangrove' somewhere in their searchable fields
+    expect(
+      result.trees.every((t) =>
+        [t.treeId, t.species, t.region, t.status, t.projectName]
+          .join(' ')
+          .toLowerCase()
+          .includes('mangrove')
+      )
+    ).toBe(true);
   });
 });
 
