@@ -26,6 +26,7 @@
     "db:migrate:status": "node scripts/run-migrations.mjs status",
     "db:migrate:validate": "node scripts/run-migrations.mjs validate",
     "seed:species": "node scripts/seed-species.mjs",
+    "db:backup": "node scripts/db-backup.mjs",
     "prepare": "husky"
   },
   "dependencies": {
